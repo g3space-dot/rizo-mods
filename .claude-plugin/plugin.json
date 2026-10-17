@@ -1,0 +1,35 @@
+{
+  "name": "control-bridge",
+  "version": "0.1.0",
+  "description": "AI 관제 사무실 상황판과 이 Claude 세션을 잇는 관제 브리지: 상황판의 결재·재촉을 이 세션에 바로 제출하고, 세션의 작업 상태를 상황판에 실시간 반영",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "dashboardUrl": {
+      "type": "string",
+      "description": "AI 관제 사무실 상황판 아티팩트 URL",
+      "default": "https://claude.ai/artifact/BKLTCxuxhLFxAHE9p5qsNq",
+      "title": "상황판 URL"
+    },
+    "agentId": {
+      "type": "string",
+      "description": "이 세션이 상황판에서 맡는 에이전트 id (rizo-claude, susu-claude, kei-claude …)",
+      "default": "rizo-claude",
+      "title": "내 에이전트 id"
+    },
+    "pollSec": {
+      "type": "number",
+      "description": "상황판 명령 대기열을 확인하는 주기(초)",
+      "default": 6,
+      "title": "확인 주기(초)"
+    },
+    "autoOn": {
+      "type": "boolean",
+      "description": "세션이 열리면 브리지를 자동으로 켤지 (끄면 /bridge on 으로 켬)",
+      "default": false,
+      "title": "자동 켜기"
+    }
+  },
+  "author": {
+    "name": "Rizo HQ"
+  }
+}

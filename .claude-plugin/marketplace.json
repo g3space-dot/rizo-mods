@@ -1,0 +1,5 @@
+{
+  "name": "rizo-mods",
+  "owner": { "name": "Rizo HQ" },
+  "plugins": [{ "name": "control-bridge", "source": "./" }]
+}
