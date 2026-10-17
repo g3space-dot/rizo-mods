@@ -19,7 +19,7 @@ claude plugin install control-bridge --marketplace rizo-mods
 ### GitHub에서 (저장소로 올린 뒤)
 터미널 세션의 프롬프트에:
 ```
-/plugin install control-bridge --marketplace <owner>/<repo>
+/plugin install control-bridge --marketplace g3space-dot/rizo-mods
 ```
 `y`로 마켓플레이스 추가, 범위는 user 선택.
 
