@@ -61,15 +61,25 @@ async function dbQuery($: any, tool: string, url: string, collection: string, wh
   if (r.deny !== undefined || r.isError) throw new Error(r.deny ?? r.text ?? 'query failed')
   return parseDocs(r.text ?? '')
 }
+/** 문서 하나와 그 version. 없으면 null. (이미 있는 문서에 쓰려면 version 핀이 필수) */
+async function dbGet($: any, tool: string, url: string, collection: string, doc_id: string): Promise<Cmd | null> {
+  const r = await $.tool.call({ tool, action: 'get', url, collection, doc_id })
+  if (r.deny !== undefined || r.isError) return null
+  return parseDocs(r.text ?? '')[0] ?? null
+}
 async function dbUpdate($: any, tool: string, url: string, collection: string, doc_id: string, data: any, if_version?: number) {
   const input: any = { tool, action: 'update', url, collection, doc_id, data }
-  if (if_version) input.if_version = if_version
+  const v = if_version ?? (await dbGet($, tool, url, collection, doc_id))?.version
+  if (v) input.if_version = v
   const r = await $.tool.call(input)
   if (r.deny !== undefined || r.isError) throw new Error(r.deny ?? r.text ?? 'update failed')
   return r
 }
+/** 있으면 version 핀으로 update, 없으면 새로 set */
 async function dbSet($: any, tool: string, url: string, collection: string, doc_id: string, data: any) {
-  const r = await $.tool.call({ tool, action: 'set', url, collection, doc_id, data })
+  const cur = await dbGet($, tool, url, collection, doc_id)
+  const input: any = cur ? { tool, action: 'update', url, collection, doc_id, data, if_version: cur.version } : { tool, action: 'set', url, collection, doc_id, data }
+  const r = await $.tool.call(input)
   if (r.deny !== undefined || r.isError) throw new Error(r.deny ?? r.text ?? 'set failed')
   return r
 }
@@ -79,7 +89,6 @@ async function pushAgent($: any, opts: any, status: BridgeState['status'], task:
   const s = await read($, state)
   if (!s.on || !s.tool) return
   try {
-    // agents 문서는 set으로 통째로 써서 version 충돌을 피한다 (필드 3개뿐)
     await dbSet($, s.tool, String(opts.dashboardUrl), 'agents', String(opts.agentId), { status, task, note })
     await update($, state, x => ({ ...x, status, task }))
   } catch (err: any) {
