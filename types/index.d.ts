@@ -13,6 +13,8 @@ export type BridgeState = {
   status: 'idle' | 'working' | 'done' | 'blocked'
   /** 현재 작업 제목 (프롬프트 첫 줄) */
   task: string
+  /** 이 PC에서 쓰는 에이전트 id */
+  me?: string
   /** 최근 기록 */
   log: BridgeLog[]
 }

@@ -31,3 +31,4 @@ claude plugin install control-bridge --marketplace rizo-mods
 
 ## 명령
 - `/bridge on` · `/bridge off` · `/bridge sync`(지금 확인) · `/bridge`(패널 열기)
+- `/bridge as rizo-rog` — 이 PC의 에이전트 id를 저장 (설정값보다 우선)

@@ -18,6 +18,8 @@ import type { BridgeLog, BridgeState } from '../types'
  */
 
 const PLUGIN = 'control-bridge'
+/** 이 PC에 저장된 에이전트 id(/bridge as <id>)가 설정값보다 우선 */
+async function whoAmI($: any, opts: any): Promise<string> { try { const v = await $.store.get('agentId'); if (typeof v === 'string' && v.trim()) return v.trim() } catch {} return String(opts.agentId) }
 const PANE = 'control-bridge'
 const state = atom({ plugin: 'control-bridge', key: 'bridge' } as const, {
   on: false, tool: null, queued: 0, lastPoll: 0, status: 'idle', task: '', log: [],
@@ -89,7 +91,7 @@ async function pushAgent($: any, opts: any, status: BridgeState['status'], task:
   const s = await read($, state)
   if (!s.on || !s.tool) return
   try {
-    await dbSet($, s.tool, String(opts.dashboardUrl), 'agents', String(opts.agentId), { status, task, note })
+    await dbSet($, s.tool, String(opts.dashboardUrl), 'agents', await whoAmI($, opts), { status, task, note })
     await update($, state, x => ({ ...x, status, task }))
   } catch (err: any) {
     await log($, 'warn', `상태 쓰기 실패: ${clip(String(err?.message ?? err), 60)}`)
@@ -101,7 +103,7 @@ async function pollOnce($: any, opts: any) {
   const s = await read($, state)
   if (!s.on || !s.tool) return
   const url = String(opts.dashboardUrl)
-  const me = String(opts.agentId)
+  const me = await whoAmI($, opts)
   let cmds: Cmd[] = []
   try {
     cmds = await dbQuery($, s.tool, url, 'commands', [['status', '==', 'queued']])
@@ -154,7 +156,8 @@ async function closePending($: any, opts: any, resultText: string) {
 let ticker: { cancel: () => void } | null = null
 async function setOn($: any, opts: any, on: boolean) {
   const tool = on ? await findDbTool($) : null
-  await update($, state, s => ({ ...s, on, tool }))
+  const me = await whoAmI($, opts)
+  await update($, state, s => ({ ...s, on, tool, me }))
   if (ticker) { ticker.cancel(); ticker = null }
   if (on) {
     if (!tool) {
@@ -164,7 +167,7 @@ async function setOn($: any, opts: any, on: boolean) {
     }
     const ms = Math.max(3, Number(opts.pollSec) || 6) * 1000
     ticker = $.clock.every(ms, () => { void pollOnce($, opts) })
-    await log($, 'info', `켜짐 · ${tool} · ${ms / 1000}초마다 확인 · 나는 ${opts.agentId}`)
+    await log($, 'info', `켜짐 · ${tool} · ${ms / 1000}초마다 확인 · 나는 ${await whoAmI($, opts)}`)
     $.ui.status('관제 브리지 ON')
     void pollOnce($, opts)
   } else {
@@ -177,7 +180,7 @@ export const register: Register = (on, options) => {
   const opts = options as any
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'bridge', description: '관제 브리지: on | off | pane | sync — 상황판과 이 세션을 잇는다' })
+    await $.command.register({ name: 'bridge', description: '관제 브리지: on | off | sync | as <에이전트id> — 상황판과 이 세션을 잇는다' })
     if (opts.autoOn) await setOn($, opts, true)
     return next(e)
   })
@@ -187,9 +190,12 @@ export const register: Register = (on, options) => {
     if (arg === 'on' || arg === '켜기') { await setOn($, opts, true); return { text: '관제 브리지를 켰습니다. 상황판의 결재·재촉이 이 세션으로 바로 들어옵니다.' } }
     if (arg === 'off' || arg === '끄기') { await setOn($, opts, false); return { text: '관제 브리지를 껐습니다.' } }
     if (arg === 'sync' || arg === '동기화') { await pollOnce($, opts); return { text: '대기열을 지금 확인했습니다.' } }
+    if (arg.startsWith('as ') || arg.startsWith('나는 ')) { const id = arg.split(/\s+/)[1] ?? ''; if (!/^[a-z0-9-]+$/.test(id)) return { text: '형식: /bridge as rizo-rog  (영문 소문자·숫자·하이픈)' }
+      await $.store.set('agentId', id); const s0 = await read($, state); if (s0.on) await setOn($, opts, true)
+      return { text: `이 PC의 에이전트 id를 ${id} 로 저장했습니다. (설정값보다 우선, /bridge as 로 다시 바꿀 수 있음)` } }
     await $.ui.open({ id: PANE, title: '관제 브리지' })
     const s = await read($, state)
-    return { text: `관제 브리지 ${s.on ? 'ON' : 'OFF'} · 도구 ${s.tool ?? '없음'} · 대기 ${s.queued}. 명령: /bridge on | off | sync | pane` }
+    return { text: `관제 브리지 ${s.on ? 'ON' : 'OFF'} · 나는 ${await whoAmI($, opts)} · 도구 ${s.tool ?? '없음'} · 대기 ${s.queued}. 명령: /bridge on | off | sync | as <id>` }
   })
 
   // 들어오는 프롬프트 → 상황판에 "작업 중"
@@ -223,7 +229,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Text bold>관제 브리지 {s.on ? '● ON' : '○ OFF'}</Text>
-        <Text dimColor>나: {String(opts.agentId)} · DB 도구: {s.tool ?? '없음'} · 대기 {s.queued}{s.lastPoll ? ` · 확인 ${fmt(s.lastPoll)}` : ''}</Text>
+        <Text dimColor>나: {s.me ?? String(opts.agentId)} · DB 도구: {s.tool ?? '없음'} · 대기 {s.queued}{s.lastPoll ? ` · 확인 ${fmt(s.lastPoll)}` : ''}</Text>
         <Text dimColor>세션 상태 → 상황판: {s.status}{s.task ? ` · ${s.task}` : ''}</Text>
         <Box flexDirection="row" gap={1}>
           <Button onPress={async () => { await setOn($, opts, !s.on) }}>{s.on ? '끄기' : '켜기'}</Button>
